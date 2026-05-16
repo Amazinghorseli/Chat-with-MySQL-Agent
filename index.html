@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 智能数据分析助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col">
+
+    <header class="bg-white shadow-sm border-b border-gray-200 py-4 px-6">
+        <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+            📊 AI 智能 MySQL 数据分析助手
+            <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-normal">DeepSeek 驱动</span>
+        </h1>
+    </header>
+
+    <main id="chat-box" class="flex-1 overflow-y-auto p-6 space-y-4 max-w-4xl w-full mx-auto">
+        <div class="flex items-start gap-3">
+            <div class="bg-blue-600 text-white p-2 rounded-full text-sm">🤖</div>
+            <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm max-w-xl text-gray-700">
+                同学你好！我是你的 AI 数据分析助手。我已经成功连接了你的 MySQL 数据库，你可以用“人话”向我提问，比如：
+                <ul class="list-disc list-inside mt-2 text-sm text-gray-500 space-y-1">
+                    <li>库里一共有多少条订单？</li>
+                    <li>哪个商品的单价最高？</li>
+                    <li>帮我算一下 iPhone 15 一共卖了多少钱？</li>
+                </ul>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-white border-t border-gray-200 p-4 shadow-md">
+        <div class="max-w-4xl mx-auto flex gap-3">
+            <input type="text" id="user-input"
+                   class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+                   placeholder="输入你的问题，按回车或点击发送...">
+            <button id="send-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-lg transition-colors shadow-sm">
+                发送
+            </button>
+        </div>
+    </footer>
+
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        // 向聊天框添加气泡的函数
+        function appendMessage(sender, text, isAi = false) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `flex items-start gap-3 ${isAi ? '' : 'flex-row-reverse'}`;
+
+            msgDiv.innerHTML = `
+                <div class="${isAi ? 'bg-blue-600' : 'bg-gray-600'} text-white p-2 rounded-full text-sm">${isAi ? '🤖' : '👤'}</div>
+                <div class="${isAi ? 'bg-white border border-gray-200 text-gray-700' : 'bg-blue-500 text-white'} rounded-lg p-4 shadow-sm max-w-xl whitespace-pre-wrap">${text}</div>
+            `;
+            chatBox.appendChild(msgDiv);
+            // 滚动到底部
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // 异步发送请求给 FastAPI 后端
+        async function handleSend() {
+            const question = userInput.value.trim();
+            if (!question) return;
+
+            // 1. 显示用户说的话
+            appendMessage('user', question, false);
+            userInput.value = '';
+
+            // 2. 显示 AI 正在思考的临时状态
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = "flex items-start gap-3";
+            loadingDiv.innerHTML = `
+                <div class="bg-blue-600 text-white p-2 rounded-full text-sm">🤖</div>
+                <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm text-gray-400 italic animate-pulse">AI 正在思考并查询 MySQL...</div>
+            `;
+            chatBox.appendChild(loadingDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            try {
+                // 3. 调用我们在 main.py 里写的接口
+                const response = await fetch('/api/v1/chat-sql', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: question })
+                });
+
+                const result = await response.json();
+
+                // 移除思考状态
+                chatBox.removeChild(loadingDiv);
+
+                if (response.ok && result.status === 'success') {
+                    // 4. 将 AI 的最终回答渲染出来
+                    appendMessage('ai', result.data.answer, true);
+                } else {
+                    appendMessage('ai', `❌ 出错了：${result.detail || '未知错误'}`, true);
+                }
+            } catch (error) {
+                chatBox.removeChild(loadingDiv);
+                appendMessage('ai', `❌ 网络连接失败，请检查后端是否启动。`, true);
+            }
+        }
+
+        // 绑定点击事件和回车事件
+        sendBtn.addEventListener('click', handleSend);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleSend();
+        });
+    </script>
+</body>
+</html>
